@@ -101,7 +101,8 @@ def test_wise_connection():
         # Initialize Wise API service with current settings
         wise_service = WiseAPIService(
             api_url=wise_config['api_url'],
-            api_token=wise_config['api_token']
+            api_token=wise_config['api_token'],
+            profile_id=wise_config['entity_number']
         )
         
         # Test connection

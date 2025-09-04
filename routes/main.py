@@ -89,8 +89,9 @@ def sync_bank_transactions():
         
         # Initialize Wise API service with user's settings
         wise_service = WiseAPIService(
-            wise_config['api_url'],
-            wise_config['api_token']
+            api_url=wise_config['api_url'],
+            api_token=wise_config['api_token'],
+            profile_id=wise_config['entity_number']
         )
         
         # Fetch transactions from last 30 days
