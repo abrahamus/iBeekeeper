@@ -22,10 +22,10 @@ class AppSettings(db.Model):
     
     def set_value(self, value):
         """Set setting value, converting to JSON if needed"""
-        if isinstance(value, (dict, list)):
+        if isinstance(value, (dict, list, bool)) or value is None:
             self.setting_value = json.dumps(value)
         else:
-            self.setting_value = str(value) if value is not None else None
+            self.setting_value = str(value)
     
     def get_value(self, default=None):
         """Get setting value, parsing JSON if needed"""
@@ -36,7 +36,12 @@ class AppSettings(db.Model):
         try:
             return json.loads(self.setting_value)
         except (json.JSONDecodeError, TypeError):
-            # Return as string if not valid JSON
+            # Handle legacy boolean strings for backward compatibility
+            if self.setting_value.lower() == 'true':
+                return True
+            elif self.setting_value.lower() == 'false':
+                return False
+            # Return as string if not valid JSON and not a boolean
             return self.setting_value
     
     @staticmethod
