@@ -428,8 +428,20 @@ def uploaded_file(filename):
 def mass_delete_transactions():
     """Delete multiple transactions"""
     try:
-        # Get transaction IDs from request
-        transaction_ids = request.json.get('transaction_ids', [])
+        # Debug logging
+        print(f"=== MASS DELETE REQUEST ===")
+        print(f"Request method: {request.method}")
+        print(f"Request data: {request.get_data()}")
+        print(f"Request JSON: {request.get_json()}")
+        
+        # Get transaction IDs from request - handle both JSON and form data
+        if request.is_json:
+            transaction_ids = request.json.get('transaction_ids', [])
+        else:
+            # Fallback for form data
+            transaction_ids = request.form.getlist('transaction_ids')
+        
+        print(f"Transaction IDs: {transaction_ids}")
         
         if not transaction_ids:
             return jsonify({
@@ -484,6 +496,11 @@ def mass_delete_transactions():
         
     except Exception as e:
         db.session.rollback()
+        print(f"MASS DELETE ERROR: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        
         return jsonify({
             'success': False,
             'message': f'Error deleting transactions: {str(e)}'

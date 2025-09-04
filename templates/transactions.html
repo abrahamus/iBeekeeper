@@ -531,14 +531,18 @@ function deleteSelected() {
     fetch('/transactions/mass-delete', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken()
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({
             transaction_ids: selectedIds
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             // Show success message
@@ -561,8 +565,8 @@ function deleteSelected() {
         }
     })
     .catch(error => {
-        console.error('Error:', error);
-        showAlert('danger', 'An error occurred while deleting transactions');
+        console.error('Fetch error:', error);
+        showAlert('danger', `Network error: ${error.message}`);
     })
     .finally(() => {
         // Restore button state
