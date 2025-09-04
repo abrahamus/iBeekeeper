@@ -33,7 +33,10 @@ class WiseAPIService:
             # Validate configuration
             if not all([self.api_url, self.api_token, self.profile_id]):
                 self.logger.error("Missing Wise API configuration")
+                print(f"WISE CONFIG MISSING - URL: {bool(self.api_url)}, Token: {bool(self.api_token)}, Profile: {bool(self.profile_id)}")
                 return []
+            
+            print(f"WISE API CALL STARTING - URL: {self.api_url}, Profile: {self.profile_id}")
             
             # Step 1: Get all balances for the profile
             balances = self._get_balances()
@@ -59,6 +62,11 @@ class WiseAPIService:
             
         except Exception as e:
             self.logger.error(f"Error fetching transactions: {e}")
+            # Also print to console for debugging
+            print(f"WISE API ERROR: {e}")
+            print(f"API URL: {self.api_url}")
+            print(f"Profile ID: {self.profile_id}")
+            print(f"Has Token: {bool(self.api_token)}")
             # Fallback to dummy data for development
             self.logger.info("Falling back to dummy data")
             return self._generate_dummy_transactions(days_back)
