@@ -423,10 +423,19 @@ def uploaded_file(filename):
     # Serve the file securely
     return send_file(document.file_path)
 
-@transactions_bp.route('/transactions/mass-delete', methods=['POST'])
+@transactions_bp.route('/mass-delete', methods=['POST', 'GET'])  # Allow GET for testing
 @login_required
 def mass_delete_transactions():
     """Delete multiple transactions"""
+    
+    # Handle GET requests for testing
+    if request.method == 'GET':
+        return jsonify({
+            'success': True,
+            'message': 'Mass delete endpoint is working',
+            'method': 'GET'
+        })
+    
     try:
         # Debug logging
         print(f"=== MASS DELETE REQUEST ===")
