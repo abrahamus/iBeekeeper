@@ -95,7 +95,17 @@ def sync_bank_transactions():
         )
         
         # Fetch transactions from last 30 days
+        print("=== SYNC BANK CALLED ===")
+        print(f"API URL: {wise_config['api_url']}")
+        print(f"Profile ID: {wise_config['entity_number']}")
+        print(f"Has Token: {bool(wise_config['api_token'])}")
+        print(f"Sandbox Mode: {wise_config.get('is_sandbox', False)}")
+        
         api_transactions = wise_service.get_transactions(days_back=30)
+        
+        print(f"Received {len(api_transactions)} transactions")
+        if api_transactions:
+            print(f"Sample transaction: {api_transactions[0]}")
         
         new_transactions = 0
         updated_transactions = 0
