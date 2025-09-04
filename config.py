@@ -15,7 +15,19 @@ class Config:
     PERMANENT_SESSION_LIFETIME = 3600  # 1 hour session timeout
     
     # Database configuration
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///database.db'
+    database_url = os.environ.get('DATABASE_URL') or 'sqlite:///database.db'
+    
+    # Fix for psycopg3 compatibility - replace postgres:// with postgresql://
+    # and add psycopg dialect if using PostgreSQL
+    if database_url and database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    
+    # Use psycopg3 dialect for PostgreSQL connections
+    if database_url and database_url.startswith('postgresql://'):
+        # Replace postgresql:// with postgresql+psycopg://
+        database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
+    
+    SQLALCHEMY_DATABASE_URI = database_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # File upload configuration
