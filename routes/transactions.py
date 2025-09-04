@@ -422,3 +422,69 @@ def uploaded_file(filename):
     
     # Serve the file securely
     return send_file(document.file_path)
+
+@transactions_bp.route('/transactions/mass-delete', methods=['POST'])
+@login_required
+def mass_delete_transactions():
+    """Delete multiple transactions"""
+    try:
+        # Get transaction IDs from request
+        transaction_ids = request.json.get('transaction_ids', [])
+        
+        if not transaction_ids:
+            return jsonify({
+                'success': False,
+                'message': 'No transactions selected for deletion'
+            })
+        
+        # Validate that all IDs are integers
+        try:
+            transaction_ids = [int(tid) for tid in transaction_ids]
+        except (ValueError, TypeError):
+            return jsonify({
+                'success': False,
+                'message': 'Invalid transaction IDs provided'
+            })
+        
+        # Query transactions that belong to the current user
+        transactions = Transaction.query.filter(
+            Transaction.id.in_(transaction_ids),
+            Transaction.user_id == current_user.id
+        ).all()
+        
+        if not transactions:
+            return jsonify({
+                'success': False,
+                'message': 'No valid transactions found for deletion'
+            })
+        
+        # Delete associated documents first
+        deleted_count = 0
+        for transaction in transactions:
+            # Delete associated documents
+            for document in transaction.documents:
+                try:
+                    if os.path.exists(document.file_path):
+                        os.remove(document.file_path)
+                except OSError:
+                    pass  # Continue even if file deletion fails
+            
+            # Delete the transaction (cascade will handle documents and transaction_codes)
+            db.session.delete(transaction)
+            deleted_count += 1
+        
+        # Commit all deletions
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully deleted {deleted_count} transaction(s)',
+            'deleted_count': deleted_count
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'Error deleting transactions: {str(e)}'
+        })

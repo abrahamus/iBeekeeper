@@ -140,6 +140,28 @@ select option[disabled] {
     </div>
 </div>
 
+<!-- Mass Actions Bar -->
+<div class="card mb-3" id="massActionsCard" style="display: none;">
+    <div class="card-body py-2">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <span id="selectedCount">0</span> transaction(s) selected
+            </div>
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="selectAll()">
+                    <i class="bi bi-check-square"></i> Select All
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="selectNone()">
+                    <i class="bi bi-square"></i> Select None
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteSelected()">
+                    <i class="bi bi-trash"></i> Delete Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Transactions Table -->
 <div class="card">
     <div class="card-body">
@@ -148,6 +170,9 @@ select option[disabled] {
                 <table class="table table-hover" id="transactionsTable">
                     <thead class="table-light">
                         <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAllCheckbox" onchange="toggleSelectAll()">
+                            </th>
                             <th>Date</th>
                             <th>Description</th>
                             <th>Amount</th>
@@ -165,6 +190,10 @@ select option[disabled] {
                     <tbody>
                         {% for transaction in transactions %}
                         <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input transaction-checkbox" 
+                                       value="{{ transaction.id }}" onchange="updateSelectedCount()">
+                            </td>
                             <td>{{ transaction.date }}</td>
                             <td>
                                 <div>{{ transaction.description[:60] }}{% if transaction.description|length > 60 %}...{% endif %}</div>
@@ -412,6 +441,171 @@ function updateFilterOptions() {
             statusSelect.value = 'all';
         }
     }
+}
+
+// Mass delete functionality
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.transaction-checkbox:checked');
+    const count = checkboxes.length;
+    const countElement = document.getElementById('selectedCount');
+    const massActionsCard = document.getElementById('massActionsCard');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    
+    countElement.textContent = count;
+    
+    // Show/hide mass actions bar
+    if (count > 0) {
+        massActionsCard.style.display = 'block';
+    } else {
+        massActionsCard.style.display = 'none';
+        selectAllCheckbox.checked = false;
+    }
+    
+    // Update select all checkbox state
+    const allCheckboxes = document.querySelectorAll('.transaction-checkbox');
+    selectAllCheckbox.indeterminate = count > 0 && count < allCheckboxes.length;
+    selectAllCheckbox.checked = count === allCheckboxes.length && count > 0;
+}
+
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const transactionCheckboxes = document.querySelectorAll('.transaction-checkbox');
+    
+    transactionCheckboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+    
+    updateSelectedCount();
+}
+
+function selectAll() {
+    const transactionCheckboxes = document.querySelectorAll('.transaction-checkbox');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    
+    transactionCheckboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    selectAllCheckbox.checked = true;
+    
+    updateSelectedCount();
+}
+
+function selectNone() {
+    const transactionCheckboxes = document.querySelectorAll('.transaction-checkbox');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    
+    transactionCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    selectAllCheckbox.checked = false;
+    
+    updateSelectedCount();
+}
+
+function getSelectedTransactionIds() {
+    const selectedCheckboxes = document.querySelectorAll('.transaction-checkbox:checked');
+    return Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
+}
+
+function deleteSelected() {
+    const selectedIds = getSelectedTransactionIds();
+    
+    if (selectedIds.length === 0) {
+        alert('Please select transactions to delete');
+        return;
+    }
+    
+    const confirmMessage = `Are you sure you want to delete ${selectedIds.length} transaction(s)? This action cannot be undone and will also delete any associated documents.`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    // Show loading state
+    const deleteButton = document.querySelector('[onclick="deleteSelected()"]');
+    const originalText = deleteButton.innerHTML;
+    deleteButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Deleting...';
+    deleteButton.disabled = true;
+    
+    // Make AJAX request to delete transactions
+    fetch('/transactions/mass-delete', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({
+            transaction_ids: selectedIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message
+            showAlert('success', data.message);
+            
+            // Remove deleted rows from table
+            selectedIds.forEach(id => {
+                const checkbox = document.querySelector(`.transaction-checkbox[value="${id}"]`);
+                if (checkbox) {
+                    const row = checkbox.closest('tr');
+                    row.remove();
+                }
+            });
+            
+            // Update selected count
+            updateSelectedCount();
+            
+        } else {
+            showAlert('danger', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('danger', 'An error occurred while deleting transactions');
+    })
+    .finally(() => {
+        // Restore button state
+        deleteButton.innerHTML = originalText;
+        deleteButton.disabled = false;
+    });
+}
+
+function getCsrfToken() {
+    // Get CSRF token from meta tag or form
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta) {
+        return csrfMeta.getAttribute('content');
+    }
+    
+    // Try to get from hidden form input
+    const csrfInput = document.querySelector('input[name="csrf_token"]');
+    if (csrfInput) {
+        return csrfInput.value;
+    }
+    
+    return '';
+}
+
+function showAlert(type, message) {
+    const alertContainer = document.querySelector('.card-body');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show mt-3`;
+    alert.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insert at the top of the card body
+    alertContainer.insertBefore(alert, alertContainer.firstChild);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (alert.parentNode) {
+            alert.remove();
+        }
+    }, 5000);
 }
 
 // Initialize column preferences and filter options when page loads
