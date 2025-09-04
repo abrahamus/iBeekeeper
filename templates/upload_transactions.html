@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Import Transactions - iBeekeeper{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1><i class="bi bi-download"></i> Import Transactions</h1>
+        <p class="text-muted">Import transactions into your bookkeeping system</p>
+    </div>
+</div>
+
+<!-- Import Method Selection -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-info-circle"></i> Choose Import Method</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-primary btn-lg" onclick="showSingleForm()">
+                                <i class="bi bi-plus-circle"></i><br>
+                                <strong>Single Transaction</strong><br>
+                                <small>Add one transaction manually</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-grid">
+                            <button class="btn btn-outline-success btn-lg" onclick="showCsvForm()">
+                                <i class="bi bi-file-earmark-spreadsheet"></i><br>
+                                <strong>CSV Import</strong><br>
+                                <small>Import multiple transactions from file</small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-grid">
+                            <a href="{{ url_for('main.sync_bank_transactions') }}" class="btn btn-outline-info btn-lg">
+                                <i class="bi bi-arrow-clockwise"></i><br>
+                                <strong>Sync Bank</strong><br>
+                                <small>Import transactions from bank API</small>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Single Transaction Form -->
+<div class="row mb-4" id="single-form" style="display: none;">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-plus-circle"></i> Add Single Transaction</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" onsubmit="return validateSingleForm()">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="upload_type" value="single">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="date" class="form-label">Date *</label>
+                                <input type="date" class="form-control" id="date" name="date" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description *</label>
+                                <input type="text" class="form-control" id="description" name="description" 
+                                       placeholder="Payment to supplier, Invoice from client, etc." required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">Amount *</label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" class="form-control" id="amount" name="amount" 
+                                           placeholder="0.00" required>
+                                    <input type="text" class="form-control" id="currency" name="currency" 
+                                           value="USD" maxlength="3" style="max-width: 80px;">
+                                </div>
+                                <small class="form-text text-muted">Use negative values for expenses, positive for income</small>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="payee_name" class="form-label">Payee Name</label>
+                                <input type="text" class="form-control" id="payee_name" name="payee_name" 
+                                       placeholder="Company or person name">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="merchant" class="form-label">Merchant</label>
+                                <input type="text" class="form-control" id="merchant" name="merchant" 
+                                       placeholder="Store or service provider">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="payment_reference" class="form-label">Payment Reference</label>
+                                <input type="text" class="form-control" id="payment_reference" name="payment_reference" 
+                                       placeholder="Invoice number, transaction ID, etc.">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> Add Transaction
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="resetSingleForm()">
+                            <i class="bi bi-arrow-clockwise"></i> Reset
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="hideForms()">
+                            <i class="bi bi-x"></i> Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="bi bi-lightbulb"></i> Tips</h6>
+            </div>
+            <div class="card-body">
+                <small>
+                    <ul class="mb-0">
+                        <li><strong>Date:</strong> When the transaction occurred</li>
+                        <li><strong>Amount:</strong> Positive for income, negative for expenses</li>
+                        <li><strong>Description:</strong> Clear, descriptive text</li>
+                        <li><strong>Currency:</strong> 3-letter code (USD, EUR, GBP, etc.)</li>
+                        <li><strong>Optional fields:</strong> Help with organization and matching</li>
+                    </ul>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CSV Import Form -->
+<div class="row mb-4" id="csv-form" style="display: none;">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-file-earmark-spreadsheet"></i> Import CSV File</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data" onsubmit="return validateCsvForm()">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" name="upload_type" value="csv">
+                    
+                    <div class="mb-3">
+                        <label for="csv_file" class="form-label">CSV File *</label>
+                        <input type="file" class="form-control" id="csv_file" name="csv_file" 
+                               accept=".csv" required>
+                        <small class="form-text text-muted">Select a CSV file with your transaction data</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle"></i> CSV Format Requirements</h6>
+                        <strong>Required Columns:</strong>
+                        <ul class="mb-2">
+                            <li><code>date</code> - Format: YYYY-MM-DD (e.g., 2024-01-15)</li>
+                            <li><code>description</code> - Transaction description</li>
+                            <li><code>amount</code> - Numeric value (negative for expenses)</li>
+                        </ul>
+                        <strong>Optional Columns:</strong>
+                        <ul class="mb-0">
+                            <li><code>currency</code> - Currency code (defaults to USD)</li>
+                            <li><code>payee_name</code> - Name of payee</li>
+                            <li><code>merchant</code> - Merchant/store name</li>
+                            <li><code>payment_reference</code> - Reference number</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-download"></i> Import CSV
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="hideForms()">
+                            <i class="bi bi-x"></i> Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="bi bi-download"></i> Sample CSV</h6>
+            </div>
+            <div class="card-body">
+                <p><small>Here's an example CSV format:</small></p>
+                <pre><small>date,description,amount,currency,payee_name
+2024-01-15,Office supplies,-245.67,USD,Staples Inc
+2024-01-16,Client payment,2500.00,USD,ABC Corp
+2024-01-17,Software subscription,-52.99,USD,Adobe</small></pre>
+                
+                <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="downloadSampleCsv()">
+                    <i class="bi bi-download"></i> Download Sample
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation -->
+<div class="row">
+    <div class="col-md-12">
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showSingleForm() {
+    document.getElementById('single-form').style.display = 'block';
+    document.getElementById('csv-form').style.display = 'none';
+    document.getElementById('date').valueAsDate = new Date();
+}
+
+function showCsvForm() {
+    document.getElementById('csv-form').style.display = 'block';
+    document.getElementById('single-form').style.display = 'none';
+}
+
+function hideForms() {
+    document.getElementById('single-form').style.display = 'none';
+    document.getElementById('csv-form').style.display = 'none';
+}
+
+function resetSingleForm() {
+    document.getElementById('single-form').querySelector('form').reset();
+    document.getElementById('date').valueAsDate = new Date();
+    document.getElementById('currency').value = 'USD';
+}
+
+function validateSingleForm() {
+    const amount = document.getElementById('amount').value;
+    const currency = document.getElementById('currency').value;
+    
+    if (!amount || isNaN(parseFloat(amount))) {
+        alert('Please enter a valid amount.');
+        return false;
+    }
+    
+    if (!currency || currency.length !== 3) {
+        alert('Please enter a valid 3-letter currency code.');
+        return false;
+    }
+    
+    return true;
+}
+
+function validateCsvForm() {
+    const fileInput = document.getElementById('csv_file');
+    
+    if (!fileInput.files.length) {
+        alert('Please select a CSV file to import.');
+        return false;
+    }
+    
+    const file = fileInput.files[0];
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+        alert('Please import a CSV file.');
+        return false;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        alert('File size must be less than 5MB.');
+        return false;
+    }
+    
+    return true;
+}
+
+function downloadSampleCsv() {
+    const csvContent = `date,description,amount,currency,payee_name,merchant,payment_reference
+2024-01-15,Office supplies purchase,-245.67,USD,Office Depot,OFFICE DEPOT,INV-2024-001
+2024-01-16,Client payment received,2500.00,USD,ABC Corporation,WIRE TRANSFER,PROJ-ABC-Q1
+2024-01-17,Software subscription,-52.99,USD,Adobe Systems,ADOBE.COM,SUB-ADOBE-2024
+2024-01-18,Travel expense,-650.00,USD,United Airlines,UNITED AIRLINES,CONF-TRAVEL-2024
+2024-01-19,Freelance payment,1200.00,USD,XYZ Limited,BANK TRANSFER,FREELANCE-JAN2024`;
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = 'sample_transactions.csv';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+// Set default date to today when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('date').valueAsDate = new Date();
+});
+</script>
+{% endblock %}

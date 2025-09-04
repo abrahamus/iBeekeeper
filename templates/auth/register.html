@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Register - iBeekeeper{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light border-bottom-0 text-center">
+                <h4 class="mb-0"><i class="bi bi-person-plus text-success"></i> Create Account</h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="first_name" class="form-label fw-semibold">
+                                <i class="bi bi-person"></i> First Name
+                            </label>
+                            <input type="text" 
+                                   class="form-control form-control-lg" 
+                                   id="first_name" 
+                                   name="first_name" 
+                                   placeholder="Enter first name"
+                                   required 
+                                   autofocus>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="last_name" class="form-label fw-semibold">
+                                <i class="bi bi-person"></i> Last Name
+                            </label>
+                            <input type="text" 
+                                   class="form-control form-control-lg" 
+                                   id="last_name" 
+                                   name="last_name" 
+                                   placeholder="Enter last name"
+                                   required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label fw-semibold">
+                            <i class="bi bi-envelope"></i> Email Address
+                        </label>
+                        <input type="email" 
+                               class="form-control form-control-lg" 
+                               id="email" 
+                               name="email" 
+                               placeholder="Enter your email address"
+                               required>
+                        <div class="form-text">
+                            This will be your login username
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="password" class="form-label fw-semibold">
+                                <i class="bi bi-key"></i> Password
+                            </label>
+                            <input type="password" 
+                                   class="form-control form-control-lg" 
+                                   id="password" 
+                                   name="password" 
+                                   placeholder="Create a password"
+                                   minlength="8"
+                                   required>
+                            <div class="form-text">
+                                At least 8 characters
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="confirm_password" class="form-label fw-semibold">
+                                <i class="bi bi-key"></i> Confirm Password
+                            </label>
+                            <input type="password" 
+                                   class="form-control form-control-lg" 
+                                   id="confirm_password" 
+                                   name="confirm_password" 
+                                   placeholder="Confirm your password"
+                                   required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="agree_terms" required>
+                            <label class="form-check-label" for="agree_terms">
+                                I agree that my financial data will be stored securely and privately
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-person-check"></i> Create My Account
+                        </button>
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <div class="text-center">
+                    <p class="mb-0">Already have an account?</p>
+                    <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-box-arrow-in-right"></i> Login Here
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Privacy notice -->
+        <div class="alert alert-success mt-3">
+            <i class="bi bi-shield-check"></i>
+            <strong>Data Privacy:</strong> Your financial data is completely isolated from other users. You get your own secure workspace with private file storage.
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Password confirmation validation
+    const password = document.getElementById('password');
+    const confirmPassword = document.getElementById('confirm_password');
+    
+    function validatePassword() {
+        if (password.value !== confirmPassword.value) {
+            confirmPassword.setCustomValidity("Passwords don't match");
+        } else {
+            confirmPassword.setCustomValidity('');
+        }
+    }
+    
+    password.addEventListener('change', validatePassword);
+    confirmPassword.addEventListener('keyup', validatePassword);
+});
+</script>
+{% endblock %}

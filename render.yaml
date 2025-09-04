@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: ibeekeeper
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn "app:create_app()" --bind 0.0.0.0:$PORT
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        value: fdccdd2d7a83151d15ffb199005306b2545b2775984a77c3003f8d092eeee9e3
+      - key: SESSION_COOKIE_SECURE
+        value: true
+      - key: UPLOAD_FOLDER
+        value: /opt/render/project/src/uploads
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ibeekeeper-db
+          property: connectionString
+
+databases:
+  - name: ibeekeeper-db
+    databaseName: ibeekeeper
+    user: ibeekeeper_user

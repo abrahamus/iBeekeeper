@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Error - iBeekeeper{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Error Occurred</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center">
+                    <i class="bi bi-bug display-1 text-danger mb-3"></i>
+                    <h4 class="text-danger mb-3">Something went wrong</h4>
+                    
+                    {% if message %}
+                        <div class="alert alert-danger">
+                            {{ message }}
+                        </div>
+                    {% else %}
+                        <p class="lead">An unexpected error occurred while processing your request.</p>
+                    {% endif %}
+                    
+                    <div class="mt-4">
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary me-2">
+                            <i class="bi bi-house-door"></i> Go to Dashboard
+                        </a>
+                        <button onclick="window.history.back()" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Go Back
+                        </button>
+                    </div>
+                    
+                    <div class="text-muted mt-3">
+                        <small>
+                            If this error persists, please try refreshing the page or contact support.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

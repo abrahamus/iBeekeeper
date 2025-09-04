@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - iBeekeeper{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1><i class="bi bi-gear"></i> Settings</h1>
+    </div>
+</div>
+
+<!-- Wise API Configuration -->
+<div class="card border-0 shadow-sm mb-5">
+    <div class="card-header bg-light border-bottom-0">
+        <h5 class="mb-0"><i class="bi bi-bank text-primary"></i> Wise API Configuration</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info border-0 bg-light">
+            <i class="bi bi-info-circle text-primary"></i>
+            <strong>Connect to Wise:</strong> Configure your Wise API credentials to automatically sync transactions from your Wise account.
+        </div>
+        
+        <form method="POST" action="{{ url_for('settings.save_wise_settings') }}" id="wise-settings-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="row g-3">
+                <!-- API URL -->
+                <div class="col-md-6">
+                    <label for="api_url" class="form-label fw-semibold">
+                        <i class="bi bi-link-45deg"></i> API URL
+                    </label>
+                    <input type="url" 
+                           class="form-control form-control-lg" 
+                           id="api_url" 
+                           name="api_url" 
+                           value="{{ wise_config.api_url }}"
+                           placeholder="https://api.wise.com"
+                           required>
+                    <div class="form-text">
+                        Use <code>https://api.sandbox.transferwise.tech</code> for testing
+                    </div>
+                </div>
+                
+                <!-- Profile ID -->
+                <div class="col-md-6">
+                    <label for="entity_number" class="form-label fw-semibold">
+                        <i class="bi bi-person-badge"></i> Profile ID <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" 
+                           class="form-control form-control-lg" 
+                           id="entity_number" 
+                           name="entity_number" 
+                           value="{{ wise_config.entity_number }}"
+                           placeholder="Your Wise profile ID"
+                           pattern="[0-9]*"
+                           title="Profile ID should contain only numbers"
+                           required>
+                    <div class="form-text">
+                        Your Wise business profile ID (required for API access)
+                    </div>
+                </div>
+                
+                <!-- API Token -->
+                <div class="col-md-12">
+                    <label for="api_token" class="form-label fw-semibold">
+                        <i class="bi bi-key"></i> API Token
+                    </label>
+                    <div class="input-group">
+                        <input type="password" 
+                               class="form-control form-control-lg" 
+                               id="api_token" 
+                               name="api_token" 
+                               {% if wise_config.api_token %}placeholder="{{ wise_config.masked_token }}"{% else %}placeholder="Enter your Wise API token"{% endif %}
+                               autocomplete="new-password">
+                        <button class="btn btn-outline-secondary" type="button" id="toggle-token">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    <div class="form-text">
+                        Your Wise API token with read permissions. Leave blank to keep current token.
+                    </div>
+                </div>
+                
+                <!-- Sandbox Mode -->
+                <div class="col-md-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" 
+                               type="checkbox" 
+                               id="is_sandbox" 
+                               name="is_sandbox"
+                               {% if wise_config.is_sandbox %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="is_sandbox">
+                            <i class="bi bi-tools"></i> Sandbox/Testing Mode
+                        </label>
+                        <div class="form-text">
+                            Enable for testing with Wise sandbox environment
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <hr class="my-4">
+            
+            <!-- Action Buttons -->
+            <div class="d-flex gap-3 justify-content-between">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-check-circle"></i> Save Configuration
+                    </button>
+                    <button type="button" class="btn btn-success btn-lg" id="test-connection">
+                        <i class="bi bi-wifi"></i> Test Connection
+                    </button>
+                </div>
+                
+                <button type="button" class="btn btn-outline-danger btn-lg" id="clear-settings">
+                    <i class="bi bi-trash"></i> Clear Settings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Current Configuration Status -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-light border-bottom-0">
+        <h5 class="mb-0"><i class="bi bi-info-circle text-info"></i> Configuration Status</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-link-45deg text-{{ 'success' if wise_config.api_url else 'muted' }}" style="font-size: 2rem;"></i>
+                    </div>
+                    <h6>API URL</h6>
+                    <span class="badge bg-{{ 'success' if wise_config.api_url else 'secondary' }}">
+                        {{ 'Configured' if wise_config.api_url else 'Not Set' }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-key text-{{ 'success' if wise_config.api_token else 'muted' }}" style="font-size: 2rem;"></i>
+                    </div>
+                    <h6>API Token</h6>
+                    <span class="badge bg-{{ 'success' if wise_config.api_token else 'secondary' }}">
+                        {{ 'Configured' if wise_config.api_token else 'Not Set' }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-person-badge text-{{ 'success' if wise_config.entity_number else 'danger' }}" style="font-size: 2rem;"></i>
+                    </div>
+                    <h6>Profile ID</h6>
+                    <span class="badge bg-{{ 'success' if wise_config.entity_number else 'danger' }}">
+                        {{ 'Configured' if wise_config.entity_number else 'Required' }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="text-center">
+                    <div class="mb-2">
+                        <i class="bi bi-{{ 'tools' if wise_config.is_sandbox else 'shield-check' }} text-{{ 'warning' if wise_config.is_sandbox else 'success' }}" style="font-size: 2rem;"></i>
+                    </div>
+                    <h6>Environment</h6>
+                    <span class="badge bg-{{ 'warning' if wise_config.is_sandbox else 'success' }}">
+                        {{ 'Sandbox' if wise_config.is_sandbox else 'Production' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        {% if wise_config.api_token and wise_config.entity_number %}
+        <div class="alert alert-success border-0 mt-3">
+            <i class="bi bi-check-circle"></i>
+            <strong>Ready to sync!</strong> Your Wise API is configured. You can now use the "Sync Bank" feature on the dashboard.
+        </div>
+        {% else %}
+        <div class="alert alert-warning border-0 mt-3">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Configuration needed:</strong> Please configure your API token {% if not wise_config.entity_number %}and Profile ID{% endif %} to enable Wise synchronization.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- JavaScript for enhanced functionality -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle API token visibility
+    document.getElementById('toggle-token').addEventListener('click', function() {
+        const tokenInput = document.getElementById('api_token');
+        const icon = this.querySelector('i');
+        
+        if (tokenInput.type === 'password') {
+            tokenInput.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+        } else {
+            tokenInput.type = 'password';
+            icon.className = 'bi bi-eye';
+        }
+    });
+    
+    // Test connection
+    document.getElementById('test-connection').addEventListener('click', function() {
+        const button = this;
+        const originalText = button.innerHTML;
+        
+        // Disable button and show loading
+        button.disabled = true;
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Testing...';
+        
+        fetch('{{ url_for("settings.test_wise_connection") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() if csrf_token else '' }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message - XSS safe
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success alert-dismissible fade show mt-3';
+                
+                const icon = document.createElement('i');
+                icon.className = 'bi bi-check-circle';
+                
+                const message = document.createTextNode(' ' + data.message);
+                
+                const closeBtn = document.createElement('button');
+                closeBtn.type = 'button';
+                closeBtn.className = 'btn-close';
+                closeBtn.setAttribute('data-bs-dismiss', 'alert');
+                
+                alert.appendChild(icon);
+                alert.appendChild(message);
+                alert.appendChild(closeBtn);
+                document.querySelector('.card-body').appendChild(alert);
+            } else {
+                // Show error message - XSS safe
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-danger alert-dismissible fade show mt-3';
+                
+                const icon = document.createElement('i');
+                icon.className = 'bi bi-exclamation-triangle';
+                
+                const message = document.createTextNode(' ' + data.message);
+                
+                const closeBtn = document.createElement('button');
+                closeBtn.type = 'button';
+                closeBtn.className = 'btn-close';
+                closeBtn.setAttribute('data-bs-dismiss', 'alert');
+                
+                alert.appendChild(icon);
+                alert.appendChild(message);
+                alert.appendChild(closeBtn);
+                document.querySelector('.card-body').appendChild(alert);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // Show error message - XSS safe
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-danger alert-dismissible fade show mt-3';
+            
+            const icon = document.createElement('i');
+            icon.className = 'bi bi-exclamation-triangle';
+            
+            const message = document.createTextNode(' Connection test failed: ' + error.message);
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'btn-close';
+            closeBtn.setAttribute('data-bs-dismiss', 'alert');
+            
+            alert.appendChild(icon);
+            alert.appendChild(message);
+            alert.appendChild(closeBtn);
+            document.querySelector('.card-body').appendChild(alert);
+        })
+        .finally(() => {
+            // Re-enable button
+            button.disabled = false;
+            button.innerHTML = originalText;
+        });
+    });
+    
+    // Clear settings confirmation
+    document.getElementById('clear-settings').addEventListener('click', function() {
+        if (confirm('Are you sure you want to clear all Wise API settings? This action cannot be undone.')) {
+            // Create form and submit with CSRF token
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '{{ url_for("settings.clear_wise_settings") }}';
+            
+            // Add CSRF token
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = '{{ csrf_token() }}';
+            form.appendChild(csrfInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - iBeekeeper{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1><i class="bi bi-bar-chart"></i> Reports</h1>
+    </div>
+</div>
+
+<!-- Date Range Selection -->
+<div class="card border-0 shadow-sm mb-5">
+    <div class="card-header bg-light border-bottom-0">
+        <h5 class="mb-0"><i class="bi bi-calendar-range text-primary"></i> Select Report Period</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="start_date" class="form-label fw-semibold">Start Date</label>
+                <input type="date" class="form-control form-control-lg" id="start_date" name="start_date" value="{{ start_date_str }}">
+            </div>
+            <div class="col-md-4">
+                <label for="end_date" class="form-label fw-semibold">End Date</label>
+                <input type="date" class="form-control form-control-lg" id="end_date" name="end_date" value="{{ end_date_str }}">
+            </div>
+            <div class="col-md-4">
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-search"></i> Generate Report
+                    </button>
+                </div>
+            </div>
+        </form>
+        <div class="mt-3">
+            <small class="text-muted">
+                <i class="bi bi-info-circle"></i> Default period is year-to-date. Reports include only reconciled transactions.
+            </small>
+        </div>
+    </div>
+</div>
+
+<!-- Report Overview -->
+<div class="row mb-5">
+    <div class="col-md-8">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-light border-bottom-0">
+                <h5 class="mb-0"><i class="bi bi-bar-chart text-primary"></i> Report Overview</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-12">
+                        <div class="mb-3">
+                            <h6 class="text-muted">Report Period</h6>
+                            <h5 class="text-primary">{{ report_data.start_date }} to {{ report_data.end_date }}</h5>
+                        </div>
+                        <div class="mb-3">
+                            <h6 class="text-muted">Total Reconciled Transactions</h6>
+                            <h3 class="text-info mb-0">{{ report_data.total_transactions }}</h3>
+                            <small class="text-muted">Ready for financial reporting</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-light border-bottom-0">
+                <h5 class="mb-0"><i class="bi bi-download text-success"></i> Export Data</h5>
+            </div>
+            <div class="card-body">
+                {% if report_data.transactions %}
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('reports.export_csv', start_date=start_date_str, end_date=end_date_str) }}" 
+                           class="btn btn-success btn-lg">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+                        </a>
+                        <a href="{{ url_for('reports.export_complete', start_date=start_date_str, end_date=end_date_str) }}" 
+                           class="btn btn-primary btn-lg">
+                            <i class="bi bi-archive"></i> Complete Export
+                        </a>
+                        <small class="text-muted text-center mt-2">
+                            <i class="bi bi-info-circle"></i> Complete export includes CSV + PDF documents
+                        </small>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted">
+                        <i class="bi bi-inbox" style="font-size: 2rem; opacity: 0.5;"></i>
+                        <p class="mt-2 mb-0">No data to export</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Multi-Currency Breakdown -->
+{% if report_data.currency_totals|length > 1 %}
+<div class="card border-0 shadow-sm mb-5">
+    <div class="card-header bg-light border-bottom-0 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-currency-exchange text-warning"></i> Multi-Currency Financial Summary</h5>
+        <span class="badge bg-warning text-dark">{{ report_data.currency_totals|length }} Currencies</span>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info border-0 bg-light">
+            <i class="bi bi-info-circle text-primary"></i>
+            <strong>Financial Accuracy Note:</strong> Each currency is calculated separately to maintain precise accounting standards.
+        </div>
+        
+        <div class="row">
+            {% for currency, totals in report_data.currency_totals.items() %}
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="card border-0 shadow-sm h-100 {% if currency == report_data.primary_currency %}border-2 border-primary{% endif %}">
+                        <div class="card-header bg-gradient {% if currency == report_data.primary_currency %}bg-primary text-white{% else %}bg-light{% endif %} border-bottom-0">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0 fw-bold">{{ currency }}</h6>
+                                {% if currency == report_data.primary_currency %}
+                                    <span class="badge bg-light text-primary">Primary</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="text-success"><i class="bi bi-arrow-up-circle"></i> Revenue:</span>
+                                    <strong class="text-success fs-5">{{ currency }} ${{ "%.2f"|format(totals.revenue) }}</strong>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="text-danger"><i class="bi bi-arrow-down-circle"></i> Expenses:</span>
+                                    <strong class="text-danger fs-5">{{ currency }} ${{ "%.2f"|format(totals.expense) }}</strong>
+                                </div>
+                            </div>
+                            
+                            <hr class="my-3">
+                            
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-semibold"><i class="bi bi-calculator"></i> Net Profit:</span>
+                                <strong class="text-{{ 'success' if (totals.revenue - totals.expense) >= 0 else 'danger' }} fs-4">
+                                    {{ currency }} ${{ "%.2f"|format(totals.revenue - totals.expense) }}
+                                </strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <div class="alert alert-warning border-0 bg-light mt-4">
+            <i class="bi bi-exclamation-triangle text-warning"></i>
+            <strong>Important:</strong> Currency totals cannot be combined without exchange rate conversion. Each currency represents separate financial streams and should be analyzed independently.
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Transactions Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-light border-bottom-0 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-table text-primary"></i> Detailed Transaction Listing</h5>
+        <small class="text-muted">{{ report_data.start_date }} to {{ report_data.end_date }}</small>
+    </div>
+    <div class="card-body p-0">
+        {% if report_data.transactions %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="border-0"><i class="bi bi-calendar3"></i> Date</th>
+                            <th class="border-0"><i class="bi bi-file-text"></i> Description</th>
+                            <th class="border-0"><i class="bi bi-cash"></i> Amount</th>
+                            <th class="border-0"><i class="bi bi-tag"></i> Category</th>
+                            <th class="border-0"><i class="bi bi-person"></i> Payee</th>
+                            <th class="border-0"><i class="bi bi-paperclip"></i> Documents</th>
+                            <th class="border-0"><i class="bi bi-chat-left-text"></i> Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction, code in report_data.transactions %}
+                        <tr class="align-middle">
+                            <td class="fw-semibold text-muted">{{ transaction.date }}</td>
+                            <td class="fw-semibold">
+                                {{ transaction.description[:55] }}{% if transaction.description|length > 55 %}...{% endif %}
+                                {% if transaction.payment_reference %}
+                                    <br><small class="text-muted">Ref: {{ transaction.payment_reference }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-{{ 'success' if code.category_name == 'Revenue' else 'danger' }} fs-6 px-3 py-2">
+                                        {{ transaction.currency }} ${{ "%.2f"|format(transaction.amount|abs) }}
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if code.category_name == 'Revenue' else 'danger' }} bg-opacity-75">
+                                    <i class="bi bi-{{ 'arrow-up' if code.category_name == 'Revenue' else 'arrow-down' }}"></i>
+                                    {{ code.category_name }}
+                                </span>
+                            </td>
+                            <td class="text-muted">
+                                {{ transaction.payee_name or 'N/A' }}
+                                {% if transaction.merchant and transaction.merchant != transaction.payee_name %}
+                                    <br><small>via {{ transaction.merchant }}</small>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if transaction.documents %}
+                                    <span class="badge bg-info bg-opacity-75">
+                                        <i class="bi bi-files"></i> {{ transaction.documents|length }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted small">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">
+                                {% if code.notes %}
+                                    <div class="text-truncate" style="max-width: 150px;" title="{{ code.notes }}">
+                                        {{ code.notes }}
+                                    </div>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-inbox" style="font-size: 4rem; opacity: 0.3;"></i>
+                <h4 class="mt-4 text-muted">No reconciled transactions found</h4>
+                <p class="mb-4">No reconciled transactions were found for the selected date range.</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="{{ url_for('transactions.list_transactions', status='unreconciled') }}" class="btn btn-warning btn-lg">
+                        <i class="bi bi-tags"></i> Reconcile Transactions
+                    </a>
+                    <a href="{{ url_for('main.upload_transactions') }}" class="btn btn-outline-primary btn-lg">
+                        <i class="bi bi-plus-circle"></i> Add Transactions
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

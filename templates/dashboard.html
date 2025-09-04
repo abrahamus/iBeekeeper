@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - iBeekeeper{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-house-door"></i> Dashboard</h1>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-5">
+    <div class="col-md-4">
+        <div class="stats-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="card-title mb-2 text-muted">Total Transactions</h6>
+                    <h2 class="mb-0 fw-bold display-4">{{ stats.total_transactions }}</h2>
+                </div>
+                <div class="align-self-center">
+                    <i class="bi bi-list-ul text-primary" style="font-size: 2.5rem; opacity: 0.6;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="stats-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="card-title mb-2 text-muted">Need Reconciliation</h6>
+                    <h2 class="mb-0 fw-bold display-4">{{ stats.unreconciled_transactions }}</h2>
+                    <small class="text-muted">Unreconciled transactions</small>
+                </div>
+                <div class="align-self-center">
+                    <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2.5rem; opacity: 0.6;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="stats-card h-100">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="card-title mb-2 text-muted">Reconciled</h6>
+                    <h2 class="mb-0 fw-bold display-4">{{ stats.reconciled_transactions }}</h2>
+                    <small class="text-muted">Ready for reporting</small>
+                </div>
+                <div class="align-self-center">
+                    <i class="bi bi-check-circle text-success" style="font-size: 2.5rem; opacity: 0.6;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mb-5">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-lightning-charge text-primary me-2"></i>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <a href="{{ url_for('main.sync_bank_transactions') }}" class="btn btn-primary btn-lg w-100 d-flex align-items-center justify-content-center">
+                            <i class="bi bi-cloud-download me-2"></i> Sync Bank
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('main.upload_transactions') }}" class="btn btn-outline-primary btn-lg w-100 d-flex align-items-center justify-content-center">
+                            <i class="bi bi-plus-circle me-2"></i> Add Transaction
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('transactions.list_transactions', status='unreconciled') }}" class="btn btn-outline-warning btn-lg w-100 d-flex align-items-center justify-content-center">
+                            <i class="bi bi-tags me-2"></i> Reconcile
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{{ url_for('reports.reports') }}" class="btn btn-outline-success btn-lg w-100 d-flex align-items-center justify-content-center">
+                            <i class="bi bi-bar-chart me-2"></i> View Reports
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Transactions -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light border-bottom-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-clock-history text-primary"></i> Recent Transactions</h5>
+                <a href="{{ url_for('transactions.list_transactions') }}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-arrow-right"></i> View All
+                </a>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_transactions %}
+                    <div class="list-group list-group-flush">
+                        {% for transaction in recent_transactions %}
+                        <div class="list-group-item border-0 py-3">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <div class="fw-semibold text-dark mb-1">
+                                        {{ transaction.description[:60] }}{% if transaction.description|length > 60 %}...{% endif %}
+                                    </div>
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar3 me-1"></i>{{ transaction.date }} 
+                                        {% if transaction.payee_name %}
+                                            • <i class="bi bi-person me-1"></i>{{ transaction.payee_name }}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                <div class="col-md-2 text-center">
+                                    <span class="badge bg-{{ 'success' if transaction.is_coded else 'warning' }} fs-6">
+                                        {{ transaction.status_display }}
+                                    </span>
+                                </div>
+                                <div class="col-md-2 text-end">
+                                    <div class="fw-bold text-{{ 'success' if transaction.amount > 0 else 'danger' }} fs-5">
+                                        {% if transaction.currency and transaction.currency != 'USD' %}
+                                            {{ transaction.currency }}
+                                        {% endif %}
+                                        ${{ "%.2f"|format(transaction.amount|abs) }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.5;"></i>
+                        <h5 class="mt-3 text-muted">No transactions yet</h5>
+                        <p class="mb-3">Import some transactions to get started</p>
+                        <div class="d-flex justify-content-center gap-2">
+                            <a href="{{ url_for('main.sync_bank_transactions') }}" class="btn btn-primary btn-sm">
+                                <i class="bi bi-cloud-download"></i> Sync Bank
+                            </a>
+                            <a href="{{ url_for('main.upload_transactions') }}" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-plus-circle"></i> Add Transaction
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
