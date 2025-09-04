@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 from datetime import datetime, timedelta, timezone
 import csv
 import io
+import os
 from models import db, Transaction, TransactionCode, User
 from services.wise_api import WiseAPIService
 from config import Config
@@ -372,6 +373,98 @@ def handle_csv_upload():
         db.session.rollback()
     
     return redirect(url_for('main.upload_transactions'))
+
+@main_bp.route('/mass-delete-transactions', methods=['POST', 'GET'])
+@login_required 
+def mass_delete_transactions():
+    """Delete multiple transactions - backup route in main blueprint"""
+    
+    # Handle GET requests for testing
+    if request.method == 'GET':
+        return jsonify({
+            'success': True,
+            'message': 'Mass delete endpoint is working (main blueprint)',
+            'method': 'GET'
+        })
+    
+    try:
+        # Debug logging
+        print(f"=== MASS DELETE REQUEST (MAIN BP) ===")
+        print(f"Request method: {request.method}")
+        print(f"Request data: {request.get_data()}")
+        print(f"Request JSON: {request.get_json()}")
+        
+        # Get transaction IDs from request - handle both JSON and form data
+        if request.is_json:
+            transaction_ids = request.json.get('transaction_ids', [])
+        else:
+            # Fallback for form data
+            transaction_ids = request.form.getlist('transaction_ids')
+        
+        print(f"Transaction IDs: {transaction_ids}")
+        
+        if not transaction_ids:
+            return jsonify({
+                'success': False,
+                'message': 'No transactions selected for deletion'
+            })
+        
+        # Validate that all IDs are integers
+        try:
+            transaction_ids = [int(tid) for tid in transaction_ids]
+        except (ValueError, TypeError):
+            return jsonify({
+                'success': False,
+                'message': 'Invalid transaction IDs provided'
+            })
+        
+        # Query transactions that belong to the current user
+        transactions = Transaction.query.filter(
+            Transaction.id.in_(transaction_ids),
+            Transaction.user_id == current_user.id
+        ).all()
+        
+        if not transactions:
+            return jsonify({
+                'success': False,
+                'message': 'No valid transactions found for deletion'
+            })
+        
+        # Delete associated documents first
+        deleted_count = 0
+        for transaction in transactions:
+            # Delete associated documents
+            for document in transaction.documents:
+                try:
+                    if os.path.exists(document.file_path):
+                        os.remove(document.file_path)
+                except OSError:
+                    pass  # Continue even if file deletion fails
+            
+            # Delete the transaction (cascade will handle documents and transaction_codes)
+            db.session.delete(transaction)
+            deleted_count += 1
+        
+        # Commit all deletions
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully deleted {deleted_count} transaction(s)',
+            'deleted_count': deleted_count
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"MASS DELETE ERROR (MAIN BP): {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            'success': False,
+            'message': f'Error deleting transactions: {str(e)}'
+        })
 
 @main_bp.route('/health')
 def health_check():

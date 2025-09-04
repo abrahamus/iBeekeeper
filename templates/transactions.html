@@ -528,7 +528,7 @@ function deleteSelected() {
     deleteButton.disabled = true;
     
     // Make AJAX request to delete transactions
-    fetch('/mass-delete', {
+    fetch('/mass-delete-transactions', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
