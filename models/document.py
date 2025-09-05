@@ -3,7 +3,7 @@ from . import db
 
 class Document(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)  # Nullable for migration
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)  # Required for multi-user support
     filename = db.Column(db.String(255), nullable=False, index=True)  # Index for filename searches
     file_path = db.Column(db.String(500), nullable=False, unique=True)  # Unique constraint and index for file path
     upload_date = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)  # Index for date sorting

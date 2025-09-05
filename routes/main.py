@@ -17,10 +17,22 @@ main_bp = Blueprint('main', __name__)
 def dashboard():
     """Dashboard with overview stats and sync button"""
     
-    # Get stats for dashboard (user-filtered)
-    total_transactions = Transaction.query.filter_by(user_id=current_user.id).count()
-    unreconciled_transactions = Transaction.query.filter_by(user_id=current_user.id).filter(~Transaction.documents.any()).count()
-    reconciled_transactions = Transaction.query.filter_by(user_id=current_user.id).join(TransactionCode).count()
+    # Get stats for dashboard (user-filtered) - optimized queries
+    from sqlalchemy import func
+    from models import Document
+    
+    # Single query for total transactions
+    total_transactions = db.session.query(func.count(Transaction.id)).filter(
+        Transaction.user_id == current_user.id
+    ).scalar() or 0
+    
+    # Query for reconciled transactions (those with documents)
+    reconciled_transactions = db.session.query(func.count(Transaction.id)).join(
+        Document, Transaction.documents
+    ).filter(Transaction.user_id == current_user.id).scalar() or 0
+    
+    # Calculate unreconciled
+    unreconciled_transactions = total_transactions - reconciled_transactions
     
     # Get recent transactions (user-filtered)
     recent_transactions = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.date.desc()).limit(5).all()
@@ -96,17 +108,20 @@ def sync_bank_transactions():
         )
         
         # Fetch transactions from last 30 days
-        print("=== SYNC BANK CALLED ===")
-        print(f"API URL: {wise_config['api_url']}")
-        print(f"Profile ID: {wise_config['entity_number']}")
-        print(f"Has Token: {bool(wise_config['api_token'])}")
-        print(f"Sandbox Mode: {wise_config.get('is_sandbox', False)}")
+        # Use logging instead of print statements for production
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("Bank sync initiated")
+        logger.debug(f"API URL configured: {bool(wise_config['api_url'])}")
+        logger.debug(f"Profile ID configured: {bool(wise_config['entity_number'])}")
+        logger.debug(f"Token configured: {bool(wise_config['api_token'])}")
+        logger.debug(f"Sandbox mode: {wise_config.get('is_sandbox', False)}")
         
         api_transactions = wise_service.get_transactions(days_back=30)
         
-        print(f"Received {len(api_transactions)} transactions")
+        logger.info(f"Received {len(api_transactions)} transactions")
         if api_transactions:
-            print(f"Sample transaction: {api_transactions[0]}")
+            logger.debug("Sample transaction structure received")
         
         new_transactions = 0
         updated_transactions = 0
@@ -165,20 +180,21 @@ def upload_transactions():
     """Manual transaction upload page"""
     
     if request.method == 'POST':
-        print(f"=== UPLOAD REQUEST DEBUG ===")
-        print(f"User: {current_user.id if current_user.is_authenticated else 'NOT AUTHENTICATED'}")
-        print(f"Form data: {dict(request.form)}")
-        print(f"Files: {list(request.files.keys())}")
+        # Use logging instead of print statements
+        logger.info("Upload request initiated")
+        logger.debug(f"User authenticated: {current_user.is_authenticated}")
+        logger.debug(f"Form data keys: {list(request.form.keys())}")
+        logger.debug(f"Files uploaded: {list(request.files.keys())}")
         
         upload_type = request.form.get('upload_type')
-        print(f"Upload type: {upload_type}")
+        logger.debug(f"Upload type: {upload_type}")
         
         if upload_type == 'single':
             return handle_single_transaction_upload()
         elif upload_type == 'csv':
             return handle_csv_upload()
         else:
-            print(f"Unknown upload type: {upload_type}")
+            logger.warning(f"Unknown upload type: {upload_type}")
             flash('Invalid upload type specified.', 'error')
     
     return render_template('upload_transactions.html')
@@ -255,18 +271,16 @@ def handle_single_transaction_upload():
 def handle_csv_upload():
     """Handle CSV file upload for bulk transactions"""
     try:
-        print(f"=== CSV UPLOAD HANDLER STARTED ===")
-        print(f"Current user ID: {current_user.id}")
-        print(f"Current user authenticated: {current_user.is_authenticated}")
+        logger.info("CSV upload handler started")
         
         # Check if file was uploaded
         if 'csv_file' not in request.files:
-            print("ERROR: No csv_file in request.files")
+            logger.error("No csv_file in request.files")
             flash('No CSV file selected.', 'error')
             return redirect(url_for('main.upload_transactions'))
         
         file = request.files['csv_file']
-        print(f"File received: {file.filename}, size: {file.content_length if hasattr(file, 'content_length') else 'unknown'}")
+        logger.info(f"Processing CSV file: {file.filename}")
         
         # Validate file using the validation system
         is_valid, error_message = InputValidator.validate_file_upload(
@@ -285,17 +299,12 @@ def handle_csv_upload():
         stream = io.StringIO(content)
         csv_reader = csv.DictReader(stream)
         
-        # Debug: Print CSV info
-        print(f"=== CSV IMPORT DEBUG ===")
-        print(f"File name: {file.filename}")
-        print(f"Content preview: {content[:200]}")
-        
         # Validate CSV headers
         required_headers = ['date', 'description', 'amount']
         optional_headers = ['currency', 'payee_name', 'merchant', 'payment_reference']
         
         fieldnames = csv_reader.fieldnames
-        print(f"CSV fieldnames: {fieldnames}")
+        logger.debug(f"CSV fieldnames found: {fieldnames}")
         
         if not fieldnames:
             flash('CSV file appears to be empty or invalid format.', 'error')
@@ -314,19 +323,18 @@ def handle_csv_upload():
         skipped_transactions = 0
         errors = []
         
-        print(f"Starting to process CSV rows...")
+        logger.info("Starting CSV row processing...")
         
         for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 for header row
             try:
-                print(f"Processing row {row_num}: {row}")
+                logger.debug(f"Processing row {row_num}")
                 
                 # Clean and extract data (case-insensitive)
                 row_data = {k.lower().strip(): v.strip() if v else '' for k, v in row.items()}
-                print(f"Cleaned row data: {row_data}")
                 
                 # Skip empty rows
                 if not any(row_data.values()):
-                    print(f"Skipping empty row {row_num}")
+                    logger.debug(f"Skipping empty row {row_num}")
                     continue
                 
                 # Prepare data for validation
@@ -379,7 +387,7 @@ def handle_csv_upload():
                     status='unreconciled'
                 )
                 
-                print(f"Created transaction: {transaction.description}, Amount: {transaction.amount}, Date: {transaction.date}")
+                logger.debug(f"Created transaction: {transaction.description}")
                 db.session.add(transaction)
                 new_transactions += 1
                 
@@ -391,28 +399,24 @@ def handle_csv_upload():
                 errors.append(f"Row {row_num}: {str(e)}")
         
         # Commit successful transactions
-        print(f"=== CSV IMPORT SUMMARY ===")
-        print(f"New transactions: {new_transactions}")
-        print(f"Skipped duplicates: {skipped_transactions}")  
-        print(f"Errors: {len(errors)}")
+        logger.info(f"CSV import summary - New: {new_transactions}, Skipped: {skipped_transactions}, Errors: {len(errors)}")
         
         if new_transactions > 0:
-            print("Committing transactions to database...")
             try:
                 db.session.commit()
-                print("Database commit successful!")
+                logger.info(f"Successfully committed {new_transactions} new transactions")
                 
                 # Verify transactions were actually saved
                 saved_count = Transaction.query.filter_by(user_id=current_user.id).count()
-                print(f"Total transactions in database for user {current_user.id}: {saved_count}")
+                logger.debug(f"Total transactions in database for user: {saved_count}")
                 
             except Exception as commit_error:
-                print(f"Database commit failed: {commit_error}")
+                logger.error(f"Database commit failed: {commit_error}")
                 db.session.rollback()
                 flash(f'Database error: Failed to save transactions. {str(commit_error)}', 'error')
                 return redirect(url_for('main.upload_transactions'))
         else:
-            print("No new transactions to commit")
+            logger.info("No new transactions to commit")
         
         # Show results
         if new_transactions > 0:
@@ -452,11 +456,7 @@ def mass_delete_transactions():
         })
     
     try:
-        # Debug logging
-        print(f"=== MASS DELETE REQUEST (MAIN BP) ===")
-        print(f"Request method: {request.method}")
-        print(f"Request data: {request.get_data()}")
-        print(f"Request JSON: {request.get_json()}")
+        logger.info("Mass delete request received")
         
         # Get transaction IDs from request - handle both JSON and form data
         if request.is_json:
@@ -465,7 +465,7 @@ def mass_delete_transactions():
             # Fallback for form data
             transaction_ids = request.form.getlist('transaction_ids')
         
-        print(f"Transaction IDs: {transaction_ids}")
+        logger.debug(f"Processing deletion of {len(transaction_ids)} transactions")
         
         if not transaction_ids:
             return jsonify({
@@ -520,10 +520,8 @@ def mass_delete_transactions():
         
     except Exception as e:
         db.session.rollback()
-        print(f"MASS DELETE ERROR (MAIN BP): {str(e)}")
-        print(f"Error type: {type(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Mass delete error: {str(e)}")
+        logger.debug(f"Error type: {type(e)}", exc_info=True)
         
         return jsonify({
             'success': False,

@@ -120,8 +120,16 @@ class TransactionDeduplicator:
         normalized_desc = cls.normalize_description(description)
         normalized_ref = cls.normalize_reference(payment_reference)
         
-        # Build base query for transactions on the same date
-        query = Transaction.query.filter(Transaction.date == date)
+        # Build optimized query for potential duplicates
+        # Add amount range filter to reduce candidates before Python-level comparison
+        amount_tolerance = normalized_amount * Decimal('0.05')  # 5% tolerance for amounts
+        min_amount = normalized_amount - amount_tolerance
+        max_amount = normalized_amount + amount_tolerance
+        
+        query = Transaction.query.filter(
+            Transaction.date == date,
+            Transaction.amount.between(min_amount, max_amount)
+        )
         
         # Filter by user if provided (multi-user support)
         if user_id is not None:
@@ -130,7 +138,8 @@ class TransactionDeduplicator:
         if exclude_id:
             query = query.filter(Transaction.id != exclude_id)
         
-        candidates = query.all()
+        # Limit to recent transactions to avoid scanning entire history
+        candidates = query.order_by(Transaction.created_at.desc()).limit(20).all()
         potential_duplicates = []
         
         for candidate in candidates:

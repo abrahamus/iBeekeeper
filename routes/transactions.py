@@ -42,6 +42,14 @@ def list_transactions():
             except ValidationError as e:
                 flash(f'Invalid end date: {str(e)}', 'warning')
                 end_date = ''
+        
+        # Validate date range - start date should not be after end date
+        if start_date_obj and end_date_obj and start_date_obj > end_date_obj:
+            flash('Start date cannot be after end date', 'warning')
+            start_date_obj = None
+            end_date_obj = None
+            start_date = ''
+            end_date = ''
                 
     except ValidationError as e:
         flash(f'Filter validation error: {str(e)}', 'warning')
@@ -112,8 +120,14 @@ def list_transactions():
                 )
             )
         
-        # Order by date (newest first) and execute query
-        transactions = query.order_by(Transaction.date.desc()).all()
+        # Add pagination to handle large datasets
+        page = request.args.get('page', 1, type=int)
+        per_page = 50  # Show 50 transactions per page
+        
+        # Order by date (newest first) and paginate
+        transactions = query.order_by(Transaction.date.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
     
     return render_template('transactions.html', 
                          transactions=transactions,
@@ -400,24 +414,44 @@ def uploaded_file(filename):
     from models import Document
     import os
     
-    # Security: Prevent directory traversal
-    if '..' in filename or filename.startswith('/'):
+    # Security: Prevent directory traversal with comprehensive protection
+    import urllib.parse
+    from config import Config
+    
+    # Decode URL-encoded paths and normalize
+    decoded_filename = urllib.parse.unquote(filename)
+    normalized_path = os.path.normpath(decoded_filename)
+    
+    # Check for path traversal attempts
+    if ('..' in filename or '..' in decoded_filename or 
+        filename.startswith('/') or decoded_filename.startswith('/') or 
+        normalized_path.startswith('/') or not normalized_path or
+        os.path.isabs(normalized_path)):
         flash('Invalid file request', 'error')
         return redirect(url_for('main.dashboard'))
     
-    # Check if the file belongs to the current user
+    # Check if the file belongs to the current user using the safe normalized filename
+    safe_filename = os.path.basename(normalized_path)
     document = Document.query.filter_by(
         user_id=current_user.id,
-        filename=filename.split('/')[-1]  # Get just the filename part
+        filename=safe_filename
     ).first()
     
     if not document:
         flash('File not found or access denied', 'error')
         return redirect(url_for('main.dashboard'))
     
-    # Verify the file exists and is in the user's directory
+    # Verify the file exists and path is secure
     if not os.path.exists(document.file_path):
         flash('File no longer exists', 'error')
+        return redirect(url_for('main.dashboard'))
+    
+    # Additional security: Ensure the resolved file path is within the upload directory
+    upload_dir = os.path.abspath(os.getcwd() + '/' + Config.UPLOAD_FOLDER)
+    resolved_file_path = os.path.abspath(document.file_path)
+    
+    if not resolved_file_path.startswith(upload_dir):
+        flash('File access denied for security reasons', 'error')
         return redirect(url_for('main.dashboard'))
     
     # Serve the file securely

@@ -1,6 +1,7 @@
 import requests
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
+from decimal import Decimal, InvalidOperation
 import random
 from models import AppSettings
 import logging
@@ -33,10 +34,10 @@ class WiseAPIService:
             # Validate configuration
             if not all([self.api_url, self.api_token, self.profile_id]):
                 self.logger.error("Missing Wise API configuration")
-                print(f"WISE CONFIG MISSING - URL: {bool(self.api_url)}, Token: {bool(self.api_token)}, Profile: {bool(self.profile_id)}")
+                self.logger.debug(f"Configuration status - URL: {bool(self.api_url)}, Token: {bool(self.api_token)}, Profile: {bool(self.profile_id)}")
                 return []
             
-            print(f"WISE API CALL STARTING - URL: {self.api_url}, Profile: {self.profile_id}")
+            self.logger.info("Starting Wise API transaction fetch")
             
             # Step 1: Get all balances for the profile
             balances = self._get_balances()
@@ -62,11 +63,8 @@ class WiseAPIService:
             
         except Exception as e:
             self.logger.error(f"Error fetching transactions: {e}")
-            # Also print to console for debugging
-            print(f"WISE API ERROR: {e}")
-            print(f"API URL: {self.api_url}")
-            print(f"Profile ID: {self.profile_id}")
-            print(f"Has Token: {bool(self.api_token)}")
+            # Log additional debug info for troubleshooting
+            self.logger.debug(f"API configuration - URL configured: {bool(self.api_url)}, Profile configured: {bool(self.profile_id)}, Token configured: {bool(self.api_token)}")
             # Fallback to dummy data for development
             self.logger.info("Falling back to dummy data")
             return self._generate_dummy_transactions(days_back)
@@ -187,9 +185,9 @@ class WiseAPIService:
             days_ago = random.randint(0, days_back)
             transaction_date = datetime.now() - timedelta(days=days_ago)
             
-            # Add some variation to amounts
+            # Add some variation to amounts and convert to Decimal
             amount_variation = random.uniform(0.8, 1.2)
-            varied_amount = round(sample['amount'] * amount_variation, 2)
+            varied_amount = Decimal(str(round(sample['amount'] * amount_variation, 2)))
             
             transaction = {
                 'date': transaction_date.strftime('%Y-%m-%d'),
@@ -271,9 +269,16 @@ class WiseAPIService:
             payee_name = details.get('merchant', {}).get('name', '') or details.get('senderName', '') or 'Unknown'
             merchant = details.get('merchant', {}).get('name', '') or 'N/A'
             
+            # Convert amount to Decimal safely
+            try:
+                decimal_amount = Decimal(str(amount)) if amount else Decimal('0.00')
+            except (InvalidOperation, ValueError, TypeError):
+                decimal_amount = Decimal('0.00')
+                self.logger.warning(f"Invalid amount in Wise transaction: {amount}")
+
             return {
                 'date': date[:10] if date else datetime.now().strftime('%Y-%m-%d'),  # Format as YYYY-MM-DD
-                'amount': float(amount) if amount else 0.0,
+                'amount': decimal_amount,
                 'currency': currency,
                 'description': description or 'No description',
                 'payment_reference': reference or 'N/A',
@@ -302,21 +307,53 @@ class WiseAPIService:
         self.logger.debug(f"Making API call to: {url}")
         self.logger.debug(f"With params: {params}")
         
-        response = requests.get(
-            url,
-            headers=headers,
-            params=params,
-            timeout=30  # 30 second timeout
-        )
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=30  # 30 second timeout
+            )
+        except requests.exceptions.Timeout:
+            self.logger.error("Wise API request timed out")
+            raise Exception("API request timed out. Please check your connection")
+        except requests.exceptions.ConnectionError:
+            self.logger.error("Failed to connect to Wise API")
+            raise Exception("Failed to connect to Wise API. Please check your internet connection")
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Wise API request failed: {e}")
+            raise Exception(f"API request failed: {str(e)}")
         
         # Log response status
         self.logger.debug(f"Response status: {response.status_code}")
         
-        # Check if request was successful
-        response.raise_for_status()
-        
-        # Return JSON response
-        return response.json()
+        try:
+            # Handle different HTTP status codes appropriately
+            if response.status_code == 401:
+                self.logger.error("Wise API authentication failed - invalid token")
+                raise Exception("Authentication failed: Invalid API token")
+            elif response.status_code == 403:
+                self.logger.error("Wise API access forbidden - insufficient permissions")
+                raise Exception("Access denied: Insufficient API permissions")
+            elif response.status_code == 404:
+                self.logger.error("Wise API endpoint not found")
+                raise Exception("API endpoint not found")
+            elif response.status_code == 429:
+                self.logger.error("Wise API rate limit exceeded")
+                raise Exception("API rate limit exceeded. Please try again later")
+            elif response.status_code >= 500:
+                self.logger.error(f"Wise API server error: {response.status_code}")
+                raise Exception(f"Wise API server error: {response.status_code}")
+            
+            # Check if request was successful
+            response.raise_for_status()
+            
+            # Return JSON response
+            return response.json()
+            
+        except requests.exceptions.JSONDecodeError as e:
+            self.logger.error(f"Invalid JSON response from Wise API: {e}")
+            raise Exception("Invalid response format from Wise API")
     
     def test_connection(self) -> bool:
         """Test if API connection is working by fetching profile balances"""

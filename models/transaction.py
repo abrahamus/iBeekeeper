@@ -9,7 +9,7 @@ transaction_documents = db.Table('transaction_documents',
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)  # Nullable for migration
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)  # Required for multi-user support
     date = db.Column(db.Date, nullable=False, index=True)  # Index for date queries
     amount = db.Column(db.Numeric(precision=15, scale=2), nullable=False, index=True)  # Precise decimal for currency
     currency = db.Column(db.String(3), nullable=False, index=True)  # Index for currency grouping

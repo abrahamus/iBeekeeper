@@ -244,9 +244,9 @@ def change_password():
             flash('Current password is incorrect', 'error')
             return redirect(url_for('auth.profile'))
         
-        # Validate new password
-        if len(new_password) < 6:
-            flash('New password must be at least 6 characters long', 'error')
+        # Validate new password - consistent with registration requirements
+        if len(new_password) < 8:
+            flash('New password must be at least 8 characters long', 'error')
             return redirect(url_for('auth.profile'))
         
         if new_password != confirm_password:
