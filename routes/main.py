@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, flash, redirect, url_for, jsonify, request
 from flask_login import login_required, current_user
+from flask_wtf.csrf import exempt
 from datetime import datetime, timedelta, timezone
 import csv
 import io
@@ -376,6 +377,7 @@ def handle_csv_upload():
 
 @main_bp.route('/mass-delete-transactions', methods=['POST', 'GET'])
 @login_required 
+@exempt
 def mass_delete_transactions():
     """Delete multiple transactions - backup route in main blueprint"""
     
@@ -466,9 +468,17 @@ def mass_delete_transactions():
             'message': f'Error deleting transactions: {str(e)}'
         })
 
-@main_bp.route('/test-delete')
+@main_bp.route('/test-delete', methods=['POST', 'GET'])
+@exempt
 def test_delete():
     """Simple test endpoint to verify routing works"""
+    if request.method == 'POST':
+        return jsonify({
+            'status': 'POST test working', 
+            'method': 'POST',
+            'received_data': str(request.get_data()),
+            'is_json': request.is_json
+        })
     return jsonify({'status': 'test endpoint working', 'message': 'This proves routes are accessible'})
 
 @main_bp.route('/health')
