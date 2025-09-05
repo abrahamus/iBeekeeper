@@ -265,15 +265,33 @@ def handle_csv_upload():
             return redirect(url_for('main.upload_transactions'))
         
         # Read and process CSV
-        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        file.seek(0)  # Reset file pointer
+        content = file.read().decode('utf-8')
+        stream = io.StringIO(content)
         csv_reader = csv.DictReader(stream)
+        
+        # Debug: Print CSV info
+        print(f"=== CSV IMPORT DEBUG ===")
+        print(f"File name: {file.filename}")
+        print(f"Content preview: {content[:200]}")
         
         # Validate CSV headers
         required_headers = ['date', 'description', 'amount']
         optional_headers = ['currency', 'payee_name', 'merchant', 'payment_reference']
         
-        if not all(header.lower() in [h.lower() for h in csv_reader.fieldnames] for header in required_headers):
-            flash(f'CSV must contain these required columns: {", ".join(required_headers)}', 'error')
+        fieldnames = csv_reader.fieldnames
+        print(f"CSV fieldnames: {fieldnames}")
+        
+        if not fieldnames:
+            flash('CSV file appears to be empty or invalid format.', 'error')
+            return redirect(url_for('main.upload_transactions'))
+        
+        # Case-insensitive header check
+        csv_headers_lower = [h.lower().strip() for h in fieldnames]
+        missing_headers = [h for h in required_headers if h.lower() not in csv_headers_lower]
+        
+        if missing_headers:
+            flash(f'CSV must contain these required columns: {", ".join(missing_headers)}. Found: {", ".join(fieldnames)}', 'error')
             return redirect(url_for('main.upload_transactions'))
         
         # Process transactions
@@ -281,13 +299,19 @@ def handle_csv_upload():
         skipped_transactions = 0
         errors = []
         
+        print(f"Starting to process CSV rows...")
+        
         for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 for header row
             try:
+                print(f"Processing row {row_num}: {row}")
+                
                 # Clean and extract data (case-insensitive)
-                row_data = {k.lower(): v.strip() if v else '' for k, v in row.items()}
+                row_data = {k.lower().strip(): v.strip() if v else '' for k, v in row.items()}
+                print(f"Cleaned row data: {row_data}")
                 
                 # Skip empty rows
                 if not any(row_data.values()):
+                    print(f"Skipping empty row {row_num}")
                     continue
                 
                 # Prepare data for validation
@@ -340,6 +364,7 @@ def handle_csv_upload():
                     status='unreconciled'
                 )
                 
+                print(f"Created transaction: {transaction.description}, Amount: {transaction.amount}, Date: {transaction.date}")
                 db.session.add(transaction)
                 new_transactions += 1
                 
@@ -351,12 +376,25 @@ def handle_csv_upload():
                 errors.append(f"Row {row_num}: {str(e)}")
         
         # Commit successful transactions
+        print(f"=== CSV IMPORT SUMMARY ===")
+        print(f"New transactions: {new_transactions}")
+        print(f"Skipped duplicates: {skipped_transactions}")  
+        print(f"Errors: {len(errors)}")
+        
         if new_transactions > 0:
+            print("Committing transactions to database...")
             db.session.commit()
+            print("Database commit successful!")
+        else:
+            print("No new transactions to commit")
         
         # Show results
         if new_transactions > 0:
             flash(f'Successfully uploaded {new_transactions} new transactions!', 'success')
+        elif skipped_transactions > 0 and len(errors) == 0:
+            flash(f'No new transactions added - all {skipped_transactions} transactions were duplicates.', 'warning')
+        elif len(errors) == 0:
+            flash('No transactions found in CSV file.', 'warning')
         
         if skipped_transactions > 0:
             flash(f'Skipped {skipped_transactions} duplicate transactions.', 'warning')
