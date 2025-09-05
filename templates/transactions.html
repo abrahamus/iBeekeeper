@@ -2,6 +2,10 @@
 
 {% block title %}Transactions - iBeekeeper{% endblock %}
 
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+
 {% block styles %}
 <style>
 /* Styling for disabled filter options */
@@ -531,7 +535,8 @@ function deleteSelected() {
     fetch('/mass-delete-transactions', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRFToken()
         },
         body: JSON.stringify({
             transaction_ids: selectedIds
@@ -575,7 +580,7 @@ function deleteSelected() {
     });
 }
 
-function getCsrfToken() {
+function getCSRFToken() {
     // Get CSRF token from meta tag or form
     const csrfMeta = document.querySelector('meta[name="csrf-token"]');
     if (csrfMeta) {
@@ -586,6 +591,14 @@ function getCsrfToken() {
     const csrfInput = document.querySelector('input[name="csrf_token"]');
     if (csrfInput) {
         return csrfInput.value;
+    }
+    
+    // Try to get from Flask-WTF generated token
+    const csrfCookie = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('csrf_token='));
+    if (csrfCookie) {
+        return csrfCookie.split('=')[1];
     }
     
     return '';
