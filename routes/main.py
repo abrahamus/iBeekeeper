@@ -466,6 +466,11 @@ def mass_delete_transactions():
             'message': f'Error deleting transactions: {str(e)}'
         })
 
+@main_bp.route('/test-delete')
+def test_delete():
+    """Simple test endpoint to verify routing works"""
+    return jsonify({'status': 'test endpoint working', 'message': 'This proves routes are accessible'})
+
 @main_bp.route('/health')
 def health_check():
     """Health check endpoint for Railway"""
