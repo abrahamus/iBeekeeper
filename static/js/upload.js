@@ -80,11 +80,30 @@ function initializeFormValidation() {
                 
                 const file = input.files[0];
                 
-                // Check file type
-                if (!file.name.toLowerCase().endsWith('.pdf')) {
-                    e.preventDefault();
-                    showAlert('Please select a PDF file.', 'danger');
-                    return false;
+                // Check file type based on input accept attribute or context
+                const acceptAttr = input.getAttribute('accept');
+                if (acceptAttr) {
+                    const allowedExtensions = acceptAttr.split(',').map(ext => ext.trim().toLowerCase());
+                    const fileName = file.name.toLowerCase();
+                    const isValidType = allowedExtensions.some(ext => {
+                        if (ext.startsWith('.')) {
+                            return fileName.endsWith(ext);
+                        }
+                        return fileName.includes(ext.replace('*', ''));
+                    });
+                    
+                    if (!isValidType) {
+                        e.preventDefault();
+                        showAlert(`Please select a valid file type. Allowed: ${acceptAttr}`, 'danger');
+                        return false;
+                    }
+                } else {
+                    // Default PDF check for backward compatibility
+                    if (!file.name.toLowerCase().endsWith('.pdf')) {
+                        e.preventDefault();
+                        showAlert('Please select a PDF file.', 'danger');
+                        return false;
+                    }
                 }
                 
                 // Check file size (16MB limit)
