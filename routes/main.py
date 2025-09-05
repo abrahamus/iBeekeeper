@@ -165,12 +165,21 @@ def upload_transactions():
     """Manual transaction upload page"""
     
     if request.method == 'POST':
+        print(f"=== UPLOAD REQUEST DEBUG ===")
+        print(f"User: {current_user.id if current_user.is_authenticated else 'NOT AUTHENTICATED'}")
+        print(f"Form data: {dict(request.form)}")
+        print(f"Files: {list(request.files.keys())}")
+        
         upload_type = request.form.get('upload_type')
+        print(f"Upload type: {upload_type}")
         
         if upload_type == 'single':
             return handle_single_transaction_upload()
         elif upload_type == 'csv':
             return handle_csv_upload()
+        else:
+            print(f"Unknown upload type: {upload_type}")
+            flash('Invalid upload type specified.', 'error')
     
     return render_template('upload_transactions.html')
 
@@ -246,12 +255,18 @@ def handle_single_transaction_upload():
 def handle_csv_upload():
     """Handle CSV file upload for bulk transactions"""
     try:
+        print(f"=== CSV UPLOAD HANDLER STARTED ===")
+        print(f"Current user ID: {current_user.id}")
+        print(f"Current user authenticated: {current_user.is_authenticated}")
+        
         # Check if file was uploaded
         if 'csv_file' not in request.files:
+            print("ERROR: No csv_file in request.files")
             flash('No CSV file selected.', 'error')
             return redirect(url_for('main.upload_transactions'))
         
         file = request.files['csv_file']
+        print(f"File received: {file.filename}, size: {file.content_length if hasattr(file, 'content_length') else 'unknown'}")
         
         # Validate file using the validation system
         is_valid, error_message = InputValidator.validate_file_upload(
@@ -383,8 +398,19 @@ def handle_csv_upload():
         
         if new_transactions > 0:
             print("Committing transactions to database...")
-            db.session.commit()
-            print("Database commit successful!")
+            try:
+                db.session.commit()
+                print("Database commit successful!")
+                
+                # Verify transactions were actually saved
+                saved_count = Transaction.query.filter_by(user_id=current_user.id).count()
+                print(f"Total transactions in database for user {current_user.id}: {saved_count}")
+                
+            except Exception as commit_error:
+                print(f"Database commit failed: {commit_error}")
+                db.session.rollback()
+                flash(f'Database error: Failed to save transactions. {str(commit_error)}', 'error')
+                return redirect(url_for('main.upload_transactions'))
         else:
             print("No new transactions to commit")
         
@@ -520,3 +546,48 @@ def test_delete():
 def health_check():
     """Health check endpoint for Railway"""
     return jsonify({'status': 'healthy', 'timestamp': datetime.now(timezone.utc).isoformat()})
+
+@main_bp.route('/debug-db')
+@login_required
+def debug_database():
+    """Debug endpoint to test database connectivity and user transactions"""
+    try:
+        # Test database connection
+        total_transactions = Transaction.query.count()
+        user_transactions = Transaction.query.filter_by(user_id=current_user.id).count()
+        
+        # Test creating a simple transaction
+        test_transaction = Transaction(
+            user_id=current_user.id,
+            date=datetime.now().date(),
+            amount=1.00,
+            currency='USD',
+            description='Test transaction for debug',
+            status='unreconciled'
+        )
+        
+        db.session.add(test_transaction)
+        db.session.commit()
+        
+        # Count again after adding
+        new_user_transactions = Transaction.query.filter_by(user_id=current_user.id).count()
+        
+        # Clean up test transaction
+        db.session.delete(test_transaction)
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'user_id': current_user.id,
+            'total_transactions_in_db': total_transactions,
+            'user_transactions_before': user_transactions,
+            'user_transactions_after_test': new_user_transactions,
+            'database_write_test': 'SUCCESS'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'database_write_test': 'FAILED'
+        })
